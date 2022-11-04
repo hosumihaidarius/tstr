@@ -4,14 +4,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"os/exec"
 	"testing"
 )
 
 const (
-	Default   = "default"
-	Namespace = "namespace"
-	TestFile  = "../testdata/requests/register_test.json"
+	Default                = "default"
+	TestFile               = "../testdata/requests/register_test.json"
+	NamespaceFlag          = "namespace"
+	NameFlag               = "name"
+	IdFlag                 = "id"
+	ScopesFlag             = "scopes"
+	NameSpaceSelectorsFlag = "namespace-selectors"
+	FileFlag               = "file"
 )
 
 var accessToken = "dev"
@@ -46,11 +52,13 @@ var testId string
 
 func TestCtlAccessTokens(t *testing.T) {
 	var accessTokenId string
+	var accessTokenName = "test"
+	var scopesFlagAdmin = "ADMIN"
 	t.Run("TestIssueAccessToken", func(t *testing.T) {
 		output := runCmd(createTstrCommand(fmt.Sprintf("ctl access-token issue %s %s %s",
-			createFlag("name", "test"),
-			createFlag("scopes", "ADMIN"),
-			createFlag("namespace-selectors", Default)), accessToken, grpcAddr))
+			createFlag(NameFlag, accessTokenName),
+			createFlag(ScopesFlag, scopesFlagAdmin),
+			createFlag(NameSpaceSelectorsFlag, Default)), accessToken, grpcAddr))
 		_ = json.Unmarshal(output, &accessTokens)
 		if !isValidJson(output) {
 			output = removeRunesUntilStartOfJson(output)
@@ -59,15 +67,21 @@ func TestCtlAccessTokens(t *testing.T) {
 		assert.True(t, isValidJson(output), "Test Failed. The output is not a valid json format")
 		assert.NotEqual(t, accessTokens.AccessToken.Id, "", "The access token was not issued")
 		accessTokenId = accessTokens.AccessToken.Id
-		assert.Equal(t, accessTokens.AccessToken.Name, "test", "The access token name is not correct")
-		assert.Equal(t, accessTokens.AccessToken.Scopes, []string{"ADMIN"}, "The access token scopes are not correct")
-		assert.Equal(t, accessTokens.AccessToken.NamespaceSelectors, []string{"default"}, "The access token namespace selectors are not correct or missing")
+		assert.Equal(t, accessTokens.AccessToken.Name, accessTokenName,
+			"The access token received does not match with the one provided in the name flag")
+		assert.Equal(t, accessTokens.AccessToken.Scopes, []string{scopesFlagAdmin},
+			"The access token scopes does not match with the one provided in the scopes flag")
+		assert.Equal(t, accessTokens.AccessToken.NamespaceSelectors, []string{Default},
+			"The access token namespace selectors do not match with the one provided in the namespace-selectors flag")
 	})
 	t.Run("TestGetAccessToken", func(t *testing.T) {
 		output := runCmd(createTstrCommand(fmt.Sprintf("ctl access-token get %s", accessTokenId), accessToken, grpcAddr))
 		_ = json.Unmarshal(output, &accessTokens)
 		assert.True(t, isValidJson(output), "Test Failed. The output is not a valid json format")
-		assert.Equal(t, accessTokens.AccessToken.Id, accessTokenId, "The access token id does not match with the issued one")
+		assert.Equal(t, accessTokens.AccessToken.Id, accessTokenId,
+			"The access token id does not match with the issued one")
+		assert.Equal(t, accessTokens.AccessToken.Name, accessTokenName,
+			"The access token received does not match with the one provided in the name flag")
 	})
 	t.Run("TestListAccessTokens", func(t *testing.T) {
 		output := runCmd(createTstrCommand("ctl access-token list", accessToken, grpcAddr))
@@ -80,8 +94,8 @@ func TestCtlAccessTokens(t *testing.T) {
 func TestCtlTest(t *testing.T) {
 	t.Run("TestRegisterTest", func(t *testing.T) {
 		command := createTstrCommand(fmt.Sprintf("ctl test register %s %s ",
-			createFlag("file", TestFile),
-			createFlag(Namespace, Default)), accessToken, grpcAddr)
+			createFlag(FileFlag, TestFile),
+			createFlag(NamespaceFlag, Default)), accessToken, grpcAddr)
 		output := runCmd(command)
 		err := json.Unmarshal(output, &tests)
 		if !isValidJson(output) {
@@ -90,31 +104,31 @@ func TestCtlTest(t *testing.T) {
 		}
 		assert.Nil(t, err, "Test Failed, unable to unmarshal the output")
 		assert.NotEmpty(t, tests.Test.Id, "The test id is empty")
-		assert.Equal(t, tests.Test.Name, "test", "The test name is not correct")
+		assert.Equal(t, tests.Test.Name, parseJsonFile(TestFile)["name"].(string), fmt.Sprintf("The test name from ctl command output does not match the one from %s", TestFile))
 		testId = tests.Test.Id
 	})
 	t.Run("TestGetRegisteredTest", func(t *testing.T) {
-		output := runCmd(createTstrCommand(fmt.Sprintf("ctl test get %s %s", testId, createFlag(Namespace, Default)), accessToken, grpcAddr))
+		output := runCmd(createTstrCommand(fmt.Sprintf("ctl test get %s %s", testId, createFlag(NamespaceFlag, Default)), accessToken, grpcAddr))
 		err := json.Unmarshal(output, &tests)
 		if !isValidJson(output) {
 			output = removeRunesUntilStartOfJson(output)
 			err = json.Unmarshal(output, &tests)
 		}
-		assert.Nil(t, err, "Test Failed unable to unmarshal the output")
+		assert.Nil(t, err, "Test Failed, unable to unmarshal the output")
 		assert.NotEmpty(t, tests.Test.Id, "The test id is empty")
-		assert.Equal(t, tests.Test.Name, "test", "The test name is not correct")
+		assert.Equal(t, tests.Test.Name, parseJsonFile(TestFile)["name"].(string), fmt.Sprintf("The test name from ctl command output does not match the one from %s", TestFile))
 	})
 	t.Run("TestUpdateRegisteredTest", func(t *testing.T) {
 		updatedTestName := "updatedTest"
 		output := runCmd(createTstrCommand(fmt.Sprintf("ctl test register %s %s %s",
-			createFlag("id", testId),
-			createFlag("name", updatedTestName),
-			createFlag(Namespace, Default)), accessToken, grpcAddr))
+			createFlag(IdFlag, testId),
+			createFlag(NameFlag, updatedTestName),
+			createFlag(NamespaceFlag, Default)), accessToken, grpcAddr))
 		assert.Contains(t, string(output), fmt.Sprintf("Updating existing test: %s", updatedTestName),
 			"The test was not successfully updated")
 	})
 	t.Run("TestGetTestList", func(t *testing.T) {
-		output := runCmd(createTstrCommand(fmt.Sprintf("ctl test list %s", createFlag(Namespace, Default)), accessToken, grpcAddr))
+		output := runCmd(createTstrCommand(fmt.Sprintf("ctl test list %s", createFlag(NamespaceFlag, Default)), accessToken, grpcAddr))
 		err := json.Unmarshal(output, &tests)
 		if !isValidJson(output) {
 			output = removeRunesUntilStartOfJson(output)
@@ -125,7 +139,7 @@ func TestCtlTest(t *testing.T) {
 	})
 	t.Run("TestDeleteRegisteredTest", func(t *testing.T) {
 		output := runCmd(createTstrCommand(fmt.Sprintf("ctl test delete %s %s", testId,
-			createFlag(Namespace, Default)), accessToken, grpcAddr))
+			createFlag(NamespaceFlag, Default)), accessToken, grpcAddr))
 		assert.Contains(t, string(output), fmt.Sprintf("Deleting registered test %s", testId), "The test was not deleted")
 	})
 }
@@ -159,4 +173,17 @@ func runCmd(cmd string) []byte {
 		panic(err)
 	}
 	return output
+}
+
+func parseJsonFile(filePath string) map[string]interface{} {
+	var jsonObject map[string]interface{}
+	file, err := os.ReadFile(filePath)
+	if err != nil {
+		panic(err)
+	}
+	err = json.Unmarshal(file, &jsonObject)
+	if err != nil {
+		panic(err)
+	}
+	return jsonObject
 }
