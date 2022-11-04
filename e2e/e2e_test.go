@@ -3,6 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	commonv1 "github.com/nanzhong/tstr/api/common/v1"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"os/exec"
@@ -24,26 +25,13 @@ var accessToken = "dev"
 var grpcAddr = "localhost:9000"
 
 type AccessTokens struct {
-	AccessTokens []AccessToken `json:"accessTokens"`
-	AccessToken  AccessToken   `json:"accessToken"`
-}
-
-type AccessToken struct {
-	Id                 string   `json:"id"`
-	Name               string   `json:"name"`
-	NamespaceSelectors []string `json:"namespaceSelectors"`
-	Scopes             []string `json:"scopes"`
+	AccessTokens []commonv1.AccessToken `json:"accessTokens"`
+	AccessToken  commonv1.AccessToken   `json:"accessToken"`
 }
 
 type Tests struct {
-	Test  Test   `json:"test"`
-	Tests []Test `json:"tests"`
-}
-
-type Test struct {
-	Id        string `json:"id"`
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
+	Test  commonv1.Test   `json:"test"`
+	Tests []commonv1.Test `json:"tests"`
 }
 
 var accessTokens AccessTokens
@@ -66,13 +54,13 @@ func TestCtlAccessTokens(t *testing.T) {
 		}
 		assert.True(t, isValidJson(output), "Test Failed. The output is not a valid json format")
 		assert.NotEqual(t, accessTokens.AccessToken.Id, "", "The access token was not issued")
-		accessTokenId = accessTokens.AccessToken.Id
 		assert.Equal(t, accessTokens.AccessToken.Name, accessTokenName,
 			"The access token received does not match with the one provided in the name flag")
-		assert.Equal(t, accessTokens.AccessToken.Scopes, []string{scopesFlagAdmin},
+		assert.Equal(t, accessTokens.AccessToken.Scopes[0].String(), scopesFlagAdmin,
 			"The access token scopes does not match with the one provided in the scopes flag")
-		assert.Equal(t, accessTokens.AccessToken.NamespaceSelectors, []string{Default},
+		assert.Equal(t, accessTokens.AccessToken.NamespaceSelectors[0], Default,
 			"The access token namespace selectors do not match with the one provided in the namespace-selectors flag")
+		accessTokenId = accessTokens.AccessToken.Id
 	})
 	t.Run("TestGetAccessToken", func(t *testing.T) {
 		output := runCmd(createTstrCommand(fmt.Sprintf("ctl access-token get %s", accessTokenId), accessToken, grpcAddr))
