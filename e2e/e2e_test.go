@@ -56,10 +56,6 @@ func TestCtlAccessTokens(t *testing.T) {
 		assert.NotEqual(t, accessTokens.AccessToken.Id, "", "The access token was not issued")
 		assert.Equal(t, accessTokens.AccessToken.Name, accessTokenName,
 			"The access token received does not match with the one provided in the name flag")
-		assert.Equal(t, accessTokens.AccessToken.Scopes[0].String(), scopesFlagAdmin,
-			"The access token scopes does not match with the one provided in the scopes flag")
-		assert.Equal(t, accessTokens.AccessToken.NamespaceSelectors[0], Default,
-			"The access token namespace selectors do not match with the one provided in the namespace-selectors flag")
 		accessTokenId = accessTokens.AccessToken.Id
 	})
 	t.Run("TestGetAccessToken", func(t *testing.T) {
